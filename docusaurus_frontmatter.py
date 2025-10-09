@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import re
+os.environ['GRPC_VERBOSITY'] = 'NONE'
 import yaml
 import google.generativeai as genai
 from dotenv import load_dotenv
