@@ -89,29 +89,16 @@ keywords: [keyword1, keyword2, keyword3]
 
             sys.exit(1)
 
-def main():
+def process_file(filepath, model_name, ignore_existing):
     """
-    Main function to process the markdown file.
+    Processes a single markdown file to add or update its front matter.
     """
-    load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Generate and prepend/update Docusaurus front matter to a Markdown file."
-    )
-    parser.add_argument("markdown_file", help="Path to the Docusaurus Markdown file.")
-    parser.add_argument(
-        "--model",
-        default="gemini-2.5-flash-lite",
-        help="The Gemini model to use for generation. (default: gemini-2.5-flash-lite)",
-    )
-    args = parser.parse_args()
-    filepath = args.markdown_file
-
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             file_content = f.read()
     except FileNotFoundError:
         print(f"Error: File not found at {filepath}", file=sys.stderr)
-        sys.exit(1)
+        return  # Return instead of exiting
 
     # Use regex to separate front matter from the main content
     match = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)', file_content, re.DOTALL)
@@ -123,17 +110,20 @@ def main():
         front_matter_str = match.group(1)
         main_content = match.group(2)
         try:
-            # Use safe_load and handle empty front matter
             front_matter_dict = yaml.safe_load(front_matter_str) or {}
         except yaml.YAMLError as e:
             print(f"Error parsing existing front matter in {filepath}: {e}", file=sys.stderr)
-            sys.exit(1)
+            return  # Return on parsing error
+
+        if ignore_existing and front_matter_dict.get("description"):
+            print(f"Skipping '{filepath}' because it already has a description and --ignore-existing is set.")
+            return  # Skip the file by returning
+
         print(f"File '{filepath}' has existing front matter. It will be updated.")
     else:
         print(f"File '{filepath}' has no front matter. A new one will be created.")
 
-    # Generate new description and keywords from the main content
-    generated_text = generate_front_matter(main_content, args.model)
+    generated_text = generate_front_matter(main_content, model_name)
 
     try:
         lines = generated_text.strip().split('\n')
@@ -148,31 +138,53 @@ def main():
         if not description or not keywords_str:
             raise ValueError("Could not parse description or keywords from model output.")
 
-        # The model might return keywords with brackets, so remove them.
         if keywords_str.startswith('[') and keywords_str.endswith(']'):
             keywords_str = keywords_str[1:-1]
 
-        # Clean up keywords
         keywords = [k.strip().strip('"\'') for k in keywords_str.split(',')]
 
     except (ValueError, IndexError) as e:
         print(f"Error parsing generated text:\n---\n{generated_text}\n---\nError: {e}", file=sys.stderr)
-        sys.exit(1)
+        return  # Return on parsing error
 
-    # Update the front matter dictionary
     front_matter_dict['description'] = description
     front_matter_dict['keywords'] = keywords
 
-    # Convert the dictionary back to a YAML string, preserving key order if possible
     new_front_matter_str = yaml.dump(front_matter_dict, default_flow_style=False, sort_keys=False)
-
-    # Construct the new file content, ensuring a blank line after the front matter
     new_file_content = f"---\n{new_front_matter_str}---\n\n{main_content}"
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(new_file_content)
 
     print(f"Successfully generated and updated front matter for {filepath}")
+
+
+def main():
+    """
+    Main function to process the markdown file(s).
+    """
+    load_dotenv()
+    parser = argparse.ArgumentParser(
+        description="Generate and prepend/update Docusaurus front matter to Markdown files."
+    )
+    parser.add_argument(
+        "markdown_files", nargs='+', help="Path(s) to the Docusaurus Markdown file(s)."
+    )
+    parser.add_argument(
+        "--model",
+        default="gemini-2.5-flash-lite",
+        help="The Gemini model to use for generation. (default: gemini-2.5-flash-lite)",
+    )
+    parser.add_argument(
+        "--ignore-existing",
+        action="store_true",
+        help="Skip files that already have a description in their front matter.",
+    )
+    args = parser.parse_args()
+
+    for filepath in args.markdown_files:
+        process_file(filepath, args.model, args.ignore_existing)
+
 
 if __name__ == "__main__":
     main()
