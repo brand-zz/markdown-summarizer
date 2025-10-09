@@ -6,7 +6,7 @@ import yaml
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-def generate_front_matter(content):
+def generate_front_matter(content, model_name):
     """
     Generates a description and keywords for the given content using the Gemini API.
     """
@@ -16,7 +16,11 @@ def generate_front_matter(content):
         sys.exit(1)
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel('models/gemini-pro-latest')
+    # Add the "models/" prefix if it's not already there.
+    if not model_name.startswith("models/"):
+        model_name = f"models/{model_name}"
+
+    model = genai.GenerativeModel(model_name)
     # Limit content size to avoid hitting API limits and to speed up processing
     prompt = f"""\
 Analyze the following Docusaurus Markdown page content and generate a concise, SEO-friendly description and a list of relevant keywords.
@@ -52,6 +56,11 @@ def main():
         description="Generate and prepend/update Docusaurus front matter to a Markdown file."
     )
     parser.add_argument("markdown_file", help="Path to the Docusaurus Markdown file.")
+    parser.add_argument(
+        "--model",
+        default="gemini-2.5-flash-lite",
+        help="The Gemini model to use for generation. (default: gemini-2.5-flash-lite)",
+    )
     args = parser.parse_args()
     filepath = args.markdown_file
 
@@ -82,7 +91,7 @@ def main():
         print(f"File '{filepath}' has no front matter. A new one will be created.")
 
     # Generate new description and keywords from the main content
-    generated_text = generate_front_matter(main_content)
+    generated_text = generate_front_matter(main_content, args.model)
 
     try:
         lines = generated_text.strip().split('\n')
