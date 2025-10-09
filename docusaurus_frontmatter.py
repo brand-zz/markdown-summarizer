@@ -20,7 +20,6 @@ def generate_front_matter(content, model_name):
     if not model_name.startswith("models/"):
         model_name = f"models/{model_name}"
 
-    model = genai.GenerativeModel(model_name)
     # Limit content size to avoid hitting API limits and to speed up processing
     prompt = f"""\
 Analyze the following Docusaurus Markdown page content and generate a concise, SEO-friendly description and a list of relevant keywords.
@@ -41,10 +40,30 @@ keywords: [keyword1, keyword2, keyword3]
 """
 
     try:
+        model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"Error generating content with Gemini: {e}", file=sys.stderr)
+        # If the model is not found, list the available models for the user.
+        # This is a common error if the user specifies a model that doesn't exist.
+        user_model_name = model_name.replace("models/", "")
+        print(f"Error generating content with model '{user_model_name}': {e}", file=sys.stderr)
+
+        try:
+            print("\nAttempting to list available models...", file=sys.stderr)
+            available_models = [
+                m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods
+            ]
+            if available_models:
+                print("\nPlease choose from one of the following available models:", file=sys.stderr)
+                for model in sorted(available_models):
+                    print(f"  - {model.replace('models/', '')}", file=sys.stderr)
+            else:
+                print("Could not find any available models that support content generation.", file=sys.stderr)
+        except Exception as list_e:
+            print(f"\nAdditionally, failed to retrieve the list of available models: {list_e}", file=sys.stderr)
+            print("Please check your API key and network connection.", file=sys.stderr)
+
         sys.exit(1)
 
 def main():
