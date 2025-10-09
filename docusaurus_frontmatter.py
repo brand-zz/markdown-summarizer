@@ -16,7 +16,7 @@ def generate_front_matter(content):
         sys.exit(1)
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-pro-latest')
     # Limit content size to avoid hitting API limits and to speed up processing
     prompt = f"""\
 Analyze the following Docusaurus Markdown page content and generate a concise, SEO-friendly description and a list of relevant keywords.
