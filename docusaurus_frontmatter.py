@@ -2,9 +2,11 @@ import argparse
 import os
 import sys
 import re
+import time
 os.environ['GRPC_VERBOSITY'] = 'NONE'
 import yaml
 import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv
 
 def generate_front_matter(content, model_name):
@@ -40,32 +42,52 @@ description: [Your generated description]
 keywords: [keyword1, keyword2, keyword3]
 """
 
-    try:
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        # If the model is not found, list the available models for the user.
-        # This is a common error if the user specifies a model that doesn't exist.
-        user_model_name = model_name.replace("models/", "")
-        print(f"Error generating content with model '{user_model_name}': {e}", file=sys.stderr)
+    model = genai.GenerativeModel(model_name)
+    backoff_delay = 1  # Initial delay in seconds for exponential backoff
 
+    while True:
         try:
-            print("\nAttempting to list available models...", file=sys.stderr)
-            available_models = [
-                m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods
-            ]
-            if available_models:
-                print("\nPlease choose from one of the following available models:", file=sys.stderr)
-                for model in sorted(available_models):
-                    print(f"  - {model.replace('models/', '')}", file=sys.stderr)
-            else:
-                print("Could not find any available models that support content generation.", file=sys.stderr)
-        except Exception as list_e:
-            print(f"\nAdditionally, failed to retrieve the list of available models: {list_e}", file=sys.stderr)
-            print("Please check your API key and network connection.", file=sys.stderr)
+            response = model.generate_content(prompt)
+            return response.text
+        except (
+            google_exceptions.ResourceExhausted,
+            google_exceptions.ServiceUnavailable,
+            google_exceptions.InternalServerError,
+            google_exceptions.DeadlineExceeded,
+        ) as e:
+            # Check if the exception has a 'retry_delay' attribute from the user's feedback
+            retry_delay = getattr(e, 'retry_delay', None)
 
-        sys.exit(1)
+            if retry_delay is not None:
+                print(f"API error occurred. Retrying in {retry_delay:.2f} seconds as suggested by the API.", file=sys.stderr)
+                time.sleep(retry_delay)
+            else:
+                # Fallback to exponential backoff if 'retry_delay' is not present
+                print(f"API error: {e}. Retrying in {backoff_delay} seconds...", file=sys.stderr)
+                time.sleep(backoff_delay)
+                backoff_delay = min(backoff_delay * 2, 60)  # Double the delay, capped at 60 seconds
+        except Exception as e:
+            # Handle non-retryable errors, such as invalid model names
+            user_model_name = model_name.replace("models/", "")
+            print(f"An unrecoverable error occurred with model '{user_model_name}': {e}", file=sys.stderr)
+
+            # Attempt to list available models to help the user
+            try:
+                print("\nAttempting to list available models...", file=sys.stderr)
+                available_models = [
+                    m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods
+                ]
+                if available_models:
+                    print("\nPlease choose from one of the following available models:", file=sys.stderr)
+                    for model in sorted(available_models):
+                        print(f"  - {model.replace('models/', '')}", file=sys.stderr)
+                else:
+                    print("Could not find any available models that support content generation.", file=sys.stderr)
+            except Exception as list_e:
+                print(f"\nAdditionally, failed to retrieve the list of available models: {list_e}", file=sys.stderr)
+                print("Please check your API key and network connection.", file=sys.stderr)
+
+            sys.exit(1)
 
 def main():
     """
