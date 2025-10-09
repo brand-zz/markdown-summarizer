@@ -21,9 +21,9 @@ def generate_front_matter(content):
     prompt = f"""\
 Analyze the following Docusaurus Markdown page content and generate a concise, SEO-friendly description and a list of relevant keywords.
 
-**Markdown Content (first 2000 characters):**
+**Markdown Content:**
 ```markdown
-{content[:2000]}
+{content}
 ```
 
 **Instructions:**
