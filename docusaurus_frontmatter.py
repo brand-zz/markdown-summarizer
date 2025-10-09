@@ -4,6 +4,7 @@ import sys
 import re
 import yaml
 import google.generativeai as genai
+from dotenv import load_dotenv
 
 def generate_front_matter(content):
     """
@@ -46,6 +47,7 @@ def main():
     """
     Main function to process the markdown file.
     """
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Generate and prepend/update Docusaurus front matter to a Markdown file."
     )
