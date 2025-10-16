@@ -22,10 +22,10 @@ This script uses the Gemini API to automatically generate and prepend front matt
 
 ## Usage
 
-Run the script from your terminal, passing the path to the Markdown file as an argument:
+Run the script from your terminal, passing one or more Markdown files as arguments:
 
 ```bash
-python docusaurus_frontmatter.py /path/to/your/markdown-file.md
+python docusaurus_frontmatter.py docs/page.md docs/other.md
 ```
 
 The script will:
@@ -34,3 +34,10 @@ The script will:
 - Update the front matter with the new `description` and `keywords`.
 
 If the file already has front matter, the script will overwrite the `description` and `keywords` fields, preserving any other existing data. If the file has no front matter, it will be created.
+
+### Options
+
+- `--model MODEL_NAME` — Override the default `gemini-2.5-flash-lite` model. You can pass either a bare model name (for example, `gemini-1.5-pro`) or a full resource name (`models/gemini-1.5-pro`).
+- `--ignore-existing` — Skip files that already include a `description` in their front matter.
+
+The script loads environment variables from a local `.env` file if present, allowing you to store `GEMINI_API_KEY` there instead of exporting it.

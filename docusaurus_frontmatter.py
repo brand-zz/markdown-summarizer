@@ -3,9 +3,16 @@ import os
 import sys
 import re
 import time
+import warnings
 os.environ['GRPC_VERBOSITY'] = 'NONE'
+# Silence proto shadowing warnings emitted during google-genai imports.
+warnings.filterwarnings(
+    "ignore",
+    message=r'Field name ".*" shadows an attribute in parent "Operation"',
+    category=UserWarning,
+)
 import yaml
-import google.generativeai as genai
+from google import genai
 from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv
 
@@ -17,7 +24,8 @@ def generate_front_matter(content, model_name):
     if not api_key:
         print("Error: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
         sys.exit(1)
-    genai.configure(api_key=api_key)
+
+    client = genai.Client(api_key=api_key)
 
     # Add the "models/" prefix if it's not already there.
     if not model_name.startswith("models/"):
@@ -41,12 +49,14 @@ description: [Your generated description]
 keywords: [keyword1, keyword2, keyword3]
 """
 
-    model = genai.GenerativeModel(model_name)
     backoff_delay = 1  # Initial delay in seconds for exponential backoff
 
     while True:
         try:
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
             return response.text
         except (
             google_exceptions.ResourceExhausted,
@@ -74,7 +84,7 @@ keywords: [keyword1, keyword2, keyword3]
             try:
                 print("\nAttempting to list available models...", file=sys.stderr)
                 available_models = [
-                    m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods
+                    m.name for m in client.models.list() if "generateContent" in m.supported_generation_methods
                 ]
                 if available_models:
                     print("\nPlease choose from one of the following available models:", file=sys.stderr)
