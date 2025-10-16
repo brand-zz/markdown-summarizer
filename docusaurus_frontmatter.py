@@ -23,9 +23,8 @@ def generate_front_matter(content, model_name):
     if not model_name.startswith("models/"):
         model_name = f"models/{model_name}"
 
-    # Limit content size to avoid hitting API limits and to speed up processing
     prompt = f"""\
-Analyze the following Docusaurus Markdown page content and generate a concise, SEO-friendly description and a list of relevant keywords.
+Analyze the following Markdown formatted page content and generate a concise, SEO-friendly description and a list of relevant keywords.
 
 **Markdown Content:**
 ```markdown
